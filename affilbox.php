@@ -186,11 +186,14 @@ function connectFapiAffilbox($vs){
 	
 	$fapi = new FAPIClient($fapiUsername, $fapiPassword, 'http://api.fapi.cz');
 
-	$invoices = $fapi->invoice->search(array('variable_symbol' => $vs, 'single' => true));
-	if(!$invoices)
-		return false;
-	
-	return number_format(round($invoices["total"]-$invoices["total_vat"],2), 2, '.', '');
+	$invoice = $fapi->invoice->search(array('variable_symbol' => $vs, 'single' => true));
+
+	return $invoice ?: false;	
+}
+
+function formatAffilboxAmount($amount)
+{
+	return number_format(round($amount,2), 2, '.', '');
 }
 
 function footerTrackingCode() {
@@ -215,25 +218,30 @@ function footerConversionCode() {
 	if (get_post_meta($post->ID, "affilboxConversionCode", TRUE)){
 	
 		$conversionCode = get_post_meta($post->ID, "affilboxConversionCode", TRUE);
-			
-		if (isset($_GET["email"])){
-			$conversionCode = str_replace("ID_TRANSAKCE",$_GET["email"],$conversionCode);	
+
+		$replacements['ID_TRANSAKCE'] = isset($_GET['email']) ? htmlspecialchars($_GET["email"]) : 'not-provided';
+
+		if (isset($_GET["cena"])) {
+			$replacements['CENA'] = number_format((float) $_GET["cena"]);
+			$replacements['OZNACENI_MENY'] = isset($_GET["mena"]) ? htmlspecialchars($_GET["mena"]) : 'CZK';
+		} elseif (isset($_GET["vs"])) {
+			$invoice = connectFapiAffilbox(intval($_GET["vs"]));
+
+			if ($invoice['total_czk'] !== null) {
+				$replacements['CENA'] = formatAffilboxAmount($invoice['total_czk'] - $invoice['total_vat_czk']);
+				$replacements['OZNACENI_MENY'] = 'CZK';
+			} else {
+				$replacements['CENA'] = formatAffilboxAmount($invoice['total'] - $invoice['total_vat']);
+				$replacements['OZNACENI_MENY'] = $invoice['currency'];
+			}
 		}
-		
-		if (isset($_GET["cena"])){
-			$conversionCode = str_replace("CENA",$_GET["cena"],$conversionCode);	
-		}		
-		else if (isset($_GET["vs"])){
-			$conversionCode = str_replace("CENA",connectFapiAffilbox(intval($_GET["vs"])),$conversionCode);	
-		}		
-		
+
+		$conversionCode = strtr($conversionCode, $replacements);
+
 		echo $conversionCode;
 		
 	}
 	
 }
+
 add_action('wp_footer', 'footerConversionCode');
-
-
-/* // post functions */
-?>
