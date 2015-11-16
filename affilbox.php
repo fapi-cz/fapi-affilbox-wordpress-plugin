@@ -181,8 +181,9 @@ function connectFapiAffilbox($vs){
 	if(!isset($fapiUsername) or !isset($fapiPassword))
 		return 0;
 
-
-	require_once("FAPIClient.php");
+	if (!class_exists('FAPIClient')) {
+		require_once("FAPIClient.php");
+	}
 	
 	$fapi = new FAPIClient($fapiUsername, $fapiPassword, 'http://api.fapi.cz');
 
